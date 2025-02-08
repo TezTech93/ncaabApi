@@ -5,7 +5,7 @@ sys.path.append(os.path.dirname((__file__)) + "/ncaabFiles/")
 from ncaabGamelines import *
 from ncaabGetData import *
 
-print(ncaab_game_lines)
+gameline_url = 'https://sportsbook.draftkings.com/leagues/basketball/ncaab'
 
 app = FastAPI()
 
@@ -19,7 +19,7 @@ app.add_middleware(
 
 @app.get("/ncaab/gamelines")
 def get_lines():
-    return {"Gamelines":ncaab_game_lines}
+    return {"Gamelines":current_gamelines(gameline_url)}
 
 @app.get("/ncaab/{team}/{year}")
 def get_stats(team,year):
