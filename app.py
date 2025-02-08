@@ -19,10 +19,12 @@ app.add_middleware(
 
 @app.get("/ncaab/gamelines")
 def get_lines():
+    print(ncaab_game_lines)
+    print('printed')
     try:
         return {"Gamelines":ncaab_game_lines[0:35]}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {'Error':e}                      
 
 @app.get("/ncaab/{team}/{year}")
 def get_stats(team,year):
