@@ -9,6 +9,7 @@ def current_gamelines(url):
     all_gamelines = []
     content = requests.get(url)
     soup = BeautifulSoup(content.content, 'html.parser')
+    print(soup)
     tr_data = soup.find_all('tr')
     print(len(tr_data))
     gameline = []
