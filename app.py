@@ -20,7 +20,7 @@ app.add_middleware(
 @app.get("/ncaab/gamelines")
 def get_lines():
     try:
-        return {"Gamelines":current_gamelines(gameline_url)}
+        return {"Gamelines":ncaab_game_lines[0:35]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
