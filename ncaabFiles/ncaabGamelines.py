@@ -37,6 +37,6 @@ def current_gamelines(url):
                     all_gamelines.append(my_dict)
     print(all_gamelines)
     ncaab_game_lines = all_gamelines
-    return ncaab_game_lines
+    return all_gamelines
 
 ncaab_game_lines = current_gamelines(url3)
