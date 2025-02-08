@@ -33,11 +33,11 @@ def current_gamelines(url):
                     'home_spread_odds': hSpreadOdds, 'away_spread_odds': aSpreadOdds,
                     'over':ovSpread,'under':unSpread,
                     'over_odds': ovSpreadOdds, 'under_odds': unSpreadOdds}
-                    gameline = []
                     all_gamelines.append(my_dict)
+                    gameline = []
                     print(a)
-                    
-    print(all_gamelines)
+
+    print(all_gamelines[8])
     return all_gamelines
 
 ncaab_game_lines = current_gamelines(url3)

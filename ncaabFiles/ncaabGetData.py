@@ -31,7 +31,6 @@ def get_team_stats(team,year):
         
         all_data.append(data)
 
-    print(all_data)
     print(type(all_data))
     try:
         return all_data
