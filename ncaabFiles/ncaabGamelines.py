@@ -10,6 +10,7 @@ def current_gamelines(url):
     content = requests.get(url)
     soup = BeautifulSoup(content.content, 'html.parser')
     tr_data = soup.find_all('tr')
+    print(len(tr_data))
     gameline = []
 
     for data in tr_data:
@@ -37,7 +38,7 @@ def current_gamelines(url):
                     gameline = []
                     print(a)
 
-    print(all_gamelines[8])
+    print(all_gamelines)
     return all_gamelines
 
 ncaab_game_lines = current_gamelines(url3)
