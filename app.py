@@ -5,6 +5,7 @@ sys.path.append(os.path.dirname((__file__)) + "/ncaabFiles/")
 from ncaabGamelines import *
 from ncaabGetData import *
 
+print(ncaab_game_lines)
 
 app = FastAPI()
 
