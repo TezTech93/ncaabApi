@@ -6,17 +6,13 @@ now = dt.datetime.now()
 today = f'{now.month},{now.day},{now.year}'
 
 off_headers = [
-    'Rk','Date'	,'Location','Opponent','Result','Cmp','Att','Pct','Yds','TD','Att','Yds','Avg','TD','Plays',
-    'Yds','Avg','Pass','Rush','Pen','Tot','No',	'Yds','Fum','Int','Tot'
-]
-
-def_headers = [
-    'Rk_Def2','Date_Def'	,'Location_Def','Opponent_Def','Result_Def','Cmp_Def','Att_Def','Pct_Def','Yds_Def','TD_Def','Att_Def','Yds_Def','Avg_Def','TD_Def','Plays_Def',
-    'Yds_Def','Avg_Def','Pass_Def','Rush_Def','Pen_Def','Tot_Def','No_Def',	'Yds_Def','Fum_Def','Int_Def','Tot_Def'
+    "G", "Date", 'Location',"Opp", "W/L", "Tm", "Opp", "FG", "FGA", "FG%", "3P", "3PA", "3P%", 
+    "FT", "FTA", "FT%", "ORB", "TRB", "AST", "STL", "BLK", "TOV", "PF", 
+    "FG", "FGA", "FG%", "3P", "3PA", "3P%", "FT", "FTA", "FT%", "ORB", "TRB", "AST", "STL", "BLK", "TOV", "PF"
 ]
 
 def get_team_stats(team,year):
-    url = f'https://www.sports-reference.com/cbb/schools/{team}/{year}/gamelog/'
+    url = f'https://www.sports-reference.com/cbb/schools/{team}/{year}-gamelogs.html'
     response = requests.get(url)
     soup = BeautifulSoup(response.text, 'html.parser')
     body = soup.find('tbody')
@@ -64,4 +60,4 @@ def get_player_stats(player,year):
 def get_coach_stats(coach):
     pass
 
-get_team_stats("ohio-state",'2024')
+get_team_stats("michigan-state",'2024')
