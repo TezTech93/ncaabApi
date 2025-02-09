@@ -35,9 +35,8 @@ async def get_lines():
         print(lines)
         if not lines:
             return {'Gamelines':default_gameline}
-        return {"Gamelines":lines}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))                      
+        return {'Gamelines':default_gameline}                     
 
 @app.get("/ncaab/{team}/{year}")
 def get_stats(team,year):
