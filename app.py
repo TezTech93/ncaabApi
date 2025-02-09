@@ -7,6 +7,13 @@ from ncaabGamelines import *
 from ncaabGetData import *
 
 gameline_url = 'https://sportsbook.draftkings.com/leagues/basketball/ncaab'
+default_gameline = {
+                    'home': 'None','away':'None',
+                    'home_ml':'None','away_ml':'None', 
+                    'home_spread':'hSpread','away_spread':'aSpread',
+                    'home_spread_odds': 'hSpreadOdds', 'away_spread_odds': 'aSpreadOdds',
+                    'over':'ovSpread','under':'unSpread',
+                    'over_odds': 'ovSpreadOdds', 'under_odds': 'unSpreadOdds'}
 
 app = FastAPI()
 
@@ -28,6 +35,7 @@ async def get_lines():
         print(lines)
         if not lines:
             raise HTTPException(status_code=404, detail="No gamelines found")
+            return {'Gamelines':default_gameline}
         return {"Gamelines":lines}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))                      
