@@ -13,6 +13,14 @@ def current_gamelines(url):
     if table:
         print('table found')
     else:
+        try:
+            data = soup.find_all('td')
+            if data:
+                print(data)
+            else:
+                print('this shit tweaking')
+        except Exception as e:   
+            print(e)
         print('error fetching data')
     tr_data = table.find_all('tr')
     print(len(tr_data))
