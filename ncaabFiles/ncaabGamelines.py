@@ -9,8 +9,7 @@ async def current_gamelines(url):
     a = 0
     all_gamelines = []
     content = requests.get(url)
-    await asyncio.sleep(1)
-    soup = BeautifulSoup(content.content, 'html.parser')
+    soup = await BeautifulSoup(content.content, 'html.parser')
     table = soup.find('table')
     if table:
         print('table found')

@@ -23,9 +23,8 @@ async def get_lines():
     print('starting')
     print('printed')
     try:
-        await asyncio.sleep(1)
         print('done')
-        lines = current_gamelines(gameline_url)
+        lines = await current_gamelines(gameline_url)
         print(lines)
         if not lines:
             raise HTTPException(status_code=404, detail="No gamelines found")
