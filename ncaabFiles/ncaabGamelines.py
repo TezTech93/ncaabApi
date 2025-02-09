@@ -9,8 +9,12 @@ def current_gamelines(url):
     all_gamelines = []
     content = requests.get(url)
     soup = BeautifulSoup(content.content, 'html.parser')
-    print(soup)
-    tr_data = soup.find_all('tr')
+    table = soup.find('table')
+    if table:
+        print('table found')
+    else:
+        print('error fetching data')
+    tr_data = table.find_all('tr')
     print(len(tr_data))
     gameline = []
 
