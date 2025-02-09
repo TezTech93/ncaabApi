@@ -6,7 +6,7 @@ now = dt.datetime.now()
 today = f'{now.month},{now.day},{now.year}'
 
 off_headers = [
-    "G", "Date", 'Location',"Opp", "W/L", "Tm", "Opp", "FG", "FGA", "FG%", "3P", "3PA", "3P%", 
+    "Date", 'Location',"Opp", "W/L", "Tm", "Opp", "FG", "FGA", "FG%", "3P", "3PA", "3P%", 
     "FT", "FTA", "FT%", "ORB", "TRB", "AST", "STL", "BLK", "TOV", "PF", 
     "FG", "FGA", "FG%", "3P", "3PA", "3P%", "FT", "FTA", "FT%", "ORB", "TRB", "AST", "STL", "BLK", "TOV", "PF"
 ]
