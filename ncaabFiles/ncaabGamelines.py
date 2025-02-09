@@ -1,13 +1,15 @@
 import requests
 import bs4
 from bs4 import BeautifulSoup
+import asyncio
 
 url3 = 'https://sportsbook.draftkings.com/leagues/basketball/ncaab'
 
-def current_gamelines(url):
+async def current_gamelines(url):
     a = 0
     all_gamelines = []
     content = requests.get(url)
+    await asyncio.sleep(1)
     soup = BeautifulSoup(content.content, 'html.parser')
     table = soup.find('table')
     if table:

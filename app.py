@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware 
 import sys, os
 sys.path.append(os.path.dirname((__file__)) + "/ncaabFiles/")
+import asyncio
 from ncaabGamelines import *
 from ncaabGetData import *
 
@@ -18,10 +19,11 @@ app.add_middleware(
 )
 
 @app.get("/ncaab/gamelines")
-def get_lines():
+async def get_lines():
     print('starting')
     print('printed')
     try:
+        await asyncio.sleep(1)
         lines = current_gamelines(gameline_url)
         if not lines:
             raise HTTPException(status_code=404, detail="No gamelines found")
