@@ -34,7 +34,6 @@ async def get_lines():
         lines = await current_gamelines(gameline_url)
         print(lines)
         if not lines:
-            raise HTTPException(status_code=404, detail="No gamelines found")
             return {'Gamelines':default_gameline}
         return {"Gamelines":lines}
     except Exception as e:
