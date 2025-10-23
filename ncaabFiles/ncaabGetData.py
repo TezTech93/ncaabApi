@@ -1,62 +1,92 @@
-import datetime as dt
 import requests
-from bs4 import BeautifulSoup
+import json
+from datetime import datetime
+import logging
 
-now = dt.datetime.now()
-today = f'{now.month},{now.day},{now.year}'
+logger = logging.getLogger(__name__)
 
-off_headers = [
-    "Date", 'Location',"Opp", "W/L", "Tm", "Opp", "FG", "FGA", "FG%", "3P", "3PA", "3P%", 
-    "FT", "FTA", "FT%", "ORB", "TRB", "AST", "STL", "BLK", "TOV", "PF", 
-    "FG", "FGA", "FG%", "3P", "3PA", "3P%", "FT", "FTA", "FT%", "ORB", "TRB", "AST", "STL", "BLK", "TOV", "PF"
-]
-
-def get_team_stats(team,year):
-    url = f'https://www.sports-reference.com/cbb/schools/{team}/{year}-gamelogs.html'
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    body = soup.find('tbody')
-    rows = body.find_all('tr')  
-
-    all_data = []
-    for row in rows:
-        cells = row.find_all('td')
-        if not cells:
-            continue
-
-        data = {
-        header: cells[idx].text if len(cells) > idx else None
-        for idx, header in enumerate(off_headers)
-    }
-        
-        all_data.append(data)
-
-    print(type(all_data))
+def get_team_stats(team, year):
+    """
+    Get NCAAB team statistics for a given team and year
+    Placeholder function - implement with actual NCAAB data source
+    """
     try:
-        return all_data
+        # This would be replaced with actual NCAAB API calls
+        # For now, return mock data
+        mock_data = {
+            "team": team,
+            "year": year,
+            "games_played": 32,
+            "wins": 25,
+            "losses": 7,
+            "conference": "Big Ten",
+            "points_per_game": 78.5,
+            "points_allowed_per_game": 65.2,
+            "field_goal_percentage": "47.2%",
+            "three_point_percentage": "36.8%",
+            "free_throw_percentage": "75.4%",
+            "rebounds_per_game": 38.2,
+            "assists_per_game": 15.8
+        }
+        return mock_data
     except Exception as e:
-        return e
+        logger.error(f"Error getting NCAAB team stats: {e}")
+        return None
 
+def get_player_stats(player, season=None):
+    """
+    Get NCAAB player statistics
+    Placeholder function - implement with actual NCAAB data source
+    """
+    try:
+        # This would be replaced with actual NCAAB API calls
+        mock_data = {
+            "player": player,
+            "season": season or "2023-24",
+            "games_played": 28,
+            "points_per_game": 18.5,
+            "rebounds_per_game": 7.2,
+            "assists_per_game": 4.1,
+            "field_goal_percentage": "45.8%",
+            "three_point_percentage": "38.2%",
+            "free_throw_percentage": "82.5%"
+        }
+        return mock_data
+    except Exception as e:
+        logger.error(f"Error getting NCAAB player stats: {e}")
+        return None
 
-
-def get_player_stats(player,year):
-    fname_lname = player.split(' ')
-    fname = fname_lname[0]
-    lname = fname_lname[1]
-    letter = lname[0].lower()
-    print(letter)
-    player_id = lname[0:5] + fname[0:2] +'01'
-    player_id = player_id.lower()
-    print(player_id)
-    #url = 'https://www.basketball-reference.com/players/{letter}/{player_id}/gamelog/{year}'
-    #response = requests.get(url)
-    #soup = BeautifulSoup(response.text, 'html.parser')
-    #rows = soup.find_all('tr')
-
-    #for row in rows:
-        #print(row)
-
-def get_coach_stats(coach):
-    pass
-
-get_team_stats("michigan-state",'2024')
+def get_team_gamelog(team, year):
+    """
+    Get NCAAB team gamelog for a given team and year
+    Placeholder function - implement with actual NCAAB data source
+    """
+    try:
+        # This would be replaced with actual NCAAB API calls
+        mock_games = [
+            {
+                "date": "2024-01-15",
+                "opponent": "Duke",
+                "result": "W",
+                "score": "85-78",
+                "home_away": "HOME"
+            },
+            {
+                "date": "2024-01-18", 
+                "opponent": "North Carolina",
+                "result": "L",
+                "score": "72-68",
+                "home_away": "AWAY"
+            },
+            {
+                "date": "2024-01-21",
+                "opponent": "Virginia",
+                "result": "W",
+                "score": "70-65", 
+                "home_away": "HOME"
+            }
+        ]
+        return mock_games
+    except Exception as e:
+        logger.error(f"Error getting NCAAB team gamelog: {e}")
+        return None
