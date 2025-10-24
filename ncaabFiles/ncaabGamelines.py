@@ -1,144 +1,375 @@
 import re
 import json
 import requests
+import pickle
+import sys
+import os
+from datetime import timedelta
+import datetime as dt
+from time import sleep
 from pprint import pprint
+import logging
+import sqlite3
 
-def get_draftkings_ncaab_gamelines():
-    """Get NCAAB game lines by directly accessing the stadiumLeagueData structure"""
-    url = "https://sportsbook.draftkings.com/leagues/basketball/ncaab"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept-Language": "en-US,en;q=0.9"
+now = dt.datetime.now()
+today = now.date()
+
+# Add paths
+sys.path.append(os.path.dirname(__file__) + "/api_scrapers/")
+sys.path.append(os.path.dirname(__file__) + "/web_scrapers/")
+
+# Import scrapers
+try:
+    from api_scrapers.espn_bets import get_espn_bets_gamelines
+except ImportError:
+    get_espn_bets_gamelines = None
+
+try:
+    from web_scrapers.draftkings_web import get_draftkings_ncaab_gamelines
+except ImportError:
+    get_draftkings_ncaab_gamelines = None
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Configuration
+CACHE_FILE = 'ncaab_gamelines_cache.pkl'
+CACHE_EXPIRY_MINUTES = 2
+REQUEST_DELAY = 1
+DB_FILE = 'ncaab_gamelines.db'
+
+# Sportsbook configurations with priority order
+SPORTSBOOKS = {
+    'draftkings': {
+        'name': 'DraftKings',
+        'type': 'web',  # web or api
+        'function': get_draftkings_ncaab_gamelines,
+        'enabled': True,
+        'priority': 1
+    },
+    'espn_bets': {
+        'name': 'ESPN Bets', 
+        'type': 'api',
+        'function': get_espn_bets_gamelines,
+        'enabled': True,
+        'priority': 2
     }
+}
 
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        
-        # Extract JSON data
-        match = re.search(r'window\.__INITIAL_STATE__\s*=\s*({.*?});', response.text, re.DOTALL)
-        if not match:
-            print("Could not find JSON data in page")
-            return []
-            
-        data = json.loads(match.group(1))
-        
-        # Access the stadium league data
-        stadium_data = data.get('stadiumLeagueData', {})
-        if not stadium_data:
-            print("No stadium league data found")
-            return []
-        
-        # NCAAB has leagueId 88637
-        ncaab_events = [
-            e for e in stadium_data.get('events', []) 
-            if e.get('leagueId') == '88637'
-        ]
-        
-        if not ncaab_events:
-            print("No NCAAB events found in stadium data")
-            return []
-            
-        # Get all markets and selections
-        markets = stadium_data.get('markets', [])
-        selections = stadium_data.get('selections', [])
-        
-        gamelines = []
-        
-        for event in ncaab_events:
-            try:
-                # Get team names
-                participants = event.get('participants', [])
-                away_team = participants[0]['name'] if len(participants) > 0 else 'Away'
-                home_team = participants[1]['name'] if len(participants) > 1 else 'Home'
-                
-                # Initialize game line
-                gameline = {
-                    'event_id': event['id'],
-                    'home': home_team,
-                    'away': away_team,
-                    'start_date': event.get('startEventDate', ''),
-                    'status': event.get('status', 'NOT_STARTED'),
-                    'home_ml': 'N/A',
-                    'away_ml': 'N/A',
-                    'home_spread': 'N/A',
-                    'away_spread': 'N/A',
-                    'home_spread_odds': 'N/A',
-                    'away_spread_odds': 'N/A',
-                    'total': 'N/A',
-                    'over_odds': 'N/A',
-                    'under_odds': 'N/A'
-                }
-                
-                # Find all markets for this event
-                event_markets = [
-                    m for m in markets 
-                    if m.get('eventId') == event['id']
-                ]
-                
-                for market in event_markets:
-                    market_id = market['id']
-                    market_type = market.get('marketType', {}).get('name', '')
-                    
-                    # Get all selections for this market
-                    market_selections = [
-                        s for s in selections 
-                        if s.get('marketId') == market_id
-                    ]
-                    
-                    # Moneyline market
-                    if market_type == 'Moneyline':
-                        for selection in market_selections:
-                            if selection.get('outcomeType') == 'Home':
-                                gameline['home_ml'] = selection.get('displayOdds', {}).get('american', 'N/A')
-                            elif selection.get('outcomeType') == 'Away':
-                                gameline['away_ml'] = selection.get('displayOdds', {}).get('american', 'N/A')
-                    
-                    # Spread market
-                    elif market_type == 'Spread':
-                        for selection in market_selections:
-                            if selection.get('outcomeType') == 'Home':
-                                gameline['home_spread'] = selection.get('points', 'N/A')
-                                gameline['home_spread_odds'] = selection.get('displayOdds', {}).get('american', 'N/A')
-                            elif selection.get('outcomeType') == 'Away':
-                                gameline['away_spread'] = selection.get('points', 'N/A')
-                                gameline['away_spread_odds'] = selection.get('displayOdds', {}).get('american', 'N/A')
-                    
-                    # Total market
-                    elif market_type == 'Total':
-                        for selection in market_selections:
-                            if selection.get('label') == 'Over':
-                                gameline['total'] = selection.get('points', 'N/A')
-                                gameline['over_odds'] = selection.get('displayOdds', {}).get('american', 'N/A')
-                            elif selection.get('label') == 'Under':
-                                gameline['under_odds'] = selection.get('displayOdds', {}).get('american', 'N/A')
-                
-                gamelines.append(gameline)
-                
-            except Exception as e:
-                print(f"Error processing event {event.get('id')}: {e}")
-                continue
-        
-        return gamelines
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        return []
-
-def print_gamelines(gamelines):
-    """Print the game lines in readable format"""
-    if not gamelines:
-        print("No game lines found")
-        return
+class GamelineManager:
+    def __init__(self, db_file=DB_FILE):
+        self.db_file = db_file
+        self.init_database()
     
-    print(f"\nFound {len(gamelines)} NCAAB games:")
-    for i, game in enumerate(gamelines, 1):
-        print(f"\nGame {i}: {game['away']} @ {game['home']}")
-        print(f"Start: {game.get('start_date', 'N/A')} | Status: {game.get('status', 'N/A')}")
-        print(f"Moneyline: {game['away_ml']} / {game['home_ml']}")
-        print(f"Spread: {game['away_spread']} ({game['away_spread_odds']}) / {game['home_spread']} ({game['home_spread_odds']})")
-        print(f"Total: {game['total']} (O: {game['over_odds']} / U: {game['under_odds']})")
+    def init_database(self):
+        """Initialize SQLite database"""
+        conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS gamelines (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source TEXT NOT NULL,
+                game_day DATE NOT NULL,
+                start_time TEXT,
+                home_team TEXT NOT NULL,
+                away_team TEXT NOT NULL,
+                home_ml INTEGER,
+                away_ml INTEGER,
+                home_spread REAL,
+                away_spread REAL,
+                home_spread_odds INTEGER,
+                away_spread_odds INTEGER,
+                over_under REAL,
+                over_odds INTEGER,
+                under_odds INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(source, game_day, home_team, away_team)
+            )
+        ''')
+        
+        conn.commit()
+        conn.close()
+        logger.info("NCAAB database initialized")
+    
+    def update_gameline(self, source, game_data):
+        """Update or insert gameline into database"""
+        conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute('''
+                INSERT OR REPLACE INTO gamelines 
+                (source, game_day, start_time, home_team, away_team, home_ml, away_ml, 
+                 home_spread, away_spread, home_spread_odds, away_spread_odds, 
+                 over_under, over_odds, under_odds, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (
+                source,
+                game_data.get('game_day', now),
+                game_data.get('start_time'),
+                game_data['home'],
+                game_data['away'],
+                game_data.get('home_ml'),
+                game_data.get('away_ml'),
+                game_data.get('home_spread'),
+                game_data.get('away_spread'),
+                game_data.get('home_spread_odds'),
+                game_data.get('away_spread_odds'),
+                game_data.get('over_under'),
+                game_data.get('over_odds'),
+                game_data.get('under_odds')
+            ))
+            
+            conn.commit()
+            logger.info(f"Updated NCAAB gameline for {game_data['home']} vs {game_data['away']} from {source}")
+            
+        except Exception as e:
+            logger.error(f"Error updating NCAAB gameline: {e}")
+        finally:
+            conn.close()
+    
+    def read_gamelines(self, source=None):
+        """Read gamelines from database"""
+        conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
+        
+        try:
+            if source:
+                cursor.execute('SELECT * FROM gamelines WHERE source = ? ORDER BY game_day, start_time', (source,))
+            else:
+                cursor.execute('SELECT * FROM gamelines ORDER BY game_day, start_time')
+            
+            columns = [col[0] for col in cursor.description]
+            results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error reading NCAAB gamelines: {e}")
+            return []
+        finally:
+            conn.close()
 
-print("Starting DraftKings NCAAB scraper...")
-ncaab_game_lines = get_draftkings_ncaab_gamelines()
-print_gamelines(ncaab_game_lines)
+    def delete_gamelines(self, source=None):
+        """Delete gamelines that have already started or are from past dates"""
+        conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
+        print('Deleting old NCAAB gamelines...')
+        
+        try:
+            # Build the base query to select potential rows to delete
+            query = 'SELECT id, game_day, start_time, home_team, away_team FROM gamelines'
+            params = []
+            if source:
+                query += ' WHERE source = ?'
+                params.append(source)
+            query += ' ORDER BY game_day, start_time'
+            
+            cursor.execute(query, params)
+            rows_to_check = cursor.fetchall()
+            
+            deleted_count = 0
+            for row in rows_to_check:
+                row_id, game_day_str, start_time, home_team, away_team = row
+                
+                # Convert game_day string to date object
+                try:
+                    game_day = dt.datetime.strptime(game_day_str, '%Y-%m-%d').date()
+                except ValueError:
+                    logger.warning(f"Could not parse game_day: {game_day_str}")
+                    continue
+                
+                # Convert start_time string to time object if it exists
+                game_time = None
+                if start_time:
+                    try:
+                        # Handle various time formats
+                        if ':' in start_time and 'Z' in start_time:
+                            # Handle format like "00:15Z"
+                            time_part = start_time.replace('Z', '')
+                            game_time = dt.datetime.strptime(time_part, '%H:%M').time()
+                        else:
+                            game_time = dt.datetime.strptime(start_time, '%H:%M:%S').time()
+                    except ValueError:
+                        try:
+                            game_time = dt.datetime.strptime(start_time, '%H:%M').time()
+                        except ValueError:
+                            logger.warning(f"Could not parse start_time: {start_time}")
+                            continue
+                
+                # Check if the game is from a past date
+                if today > game_day:
+                    cursor.execute('DELETE FROM gamelines WHERE id = ?', (row_id,))
+                    deleted_count += 1
+                    logger.debug(f"Deleted past NCAAB game: {home_team} vs {away_team} from {game_day}")
+                # Check if the game is from today but the start time has passed
+                elif today == game_day and game_time:
+                    # Create datetime object for game start
+                    game_datetime = dt.datetime.combine(game_day, game_time)
+                    if now > game_datetime:
+                        cursor.execute('DELETE FROM gamelines WHERE id = ?', (row_id,))
+                        deleted_count += 1
+                        logger.debug(f"Deleted completed NCAAB game: {home_team} vs {away_team} from {game_day} at {start_time}")
+            
+            conn.commit()
+            logger.info(f"Successfully deleted {deleted_count} expired NCAAB gamelines")
+            return deleted_count
+            
+        except Exception as e:
+            logger.error(f"Error deleting NCAAB gamelines: {e}")
+            conn.rollback()
+            return 0
+        finally:
+            conn.close()
+
+# Cache functions
+def cache_data(data, filename=CACHE_FILE):
+    """Cache data with timestamp"""
+    cache_data = {
+        'timestamp': now,
+        'data': data
+    }
+    try:
+        with open(filename, 'wb') as f:
+            pickle.dump(cache_data, f)
+        logger.info(f"NCAAB data cached to {filename}")
+    except Exception as e:
+        logger.error(f"Error caching NCAAB data: {e}")
+
+def load_cached_data(filename=CACHE_FILE, expiry_minutes=CACHE_EXPIRY_MINUTES):
+    """Load cached data if it hasn't expired"""
+    try:
+        with open(filename, 'rb') as f:
+            cache_data = pickle.load(f)
+        
+        cache_age = now - cache_data['timestamp']
+        if cache_age < timedelta(minutes=expiry_minutes):
+            logger.info(f"Using cached NCAAB data (age: {cache_age.total_seconds():.0f}s)")
+            return cache_data['data']
+        else:
+            logger.info(f"NCAAB cache expired (age: {cache_age.total_seconds():.0f}s)")
+    except FileNotFoundError:
+        logger.info("No NCAAB cache file found")
+    except Exception as e:
+        logger.error(f"Error loading NCAAB cache: {e}")
+    
+    return None
+
+def validate_gamelines(gamelines):
+    """Validate that gamelines data is complete and reasonable"""
+    if not gamelines or len(gamelines) == 0:
+        return False
+    
+    valid_count = 0
+    for game in gamelines:
+        # Check for essential fields
+        if (game.get('home') and game.get('away') and 
+            (game.get('home_ml') or game.get('away_ml') or 
+             game.get('home_spread') or game.get('over_under'))):
+            valid_count += 1
+    
+    # Consider valid if at least 50% of games have data
+    return valid_count >= len(gamelines) * 0.5
+
+def get_gamelines_with_fallback():
+    """Get gamelines with fallback strategy: API -> Web -> Manual"""
+    manager = GamelineManager()
+    
+    # Try API scrapers first
+    api_sources = {k: v for k, v in SPORTSBOOKS.items() if v['type'] == 'api' and v['enabled']}
+    web_sources = {k: v for k, v in SPORTSBOOKS.items() if v['type'] == 'web' and v['enabled']}
+    
+    all_gamelines = {}
+    
+    # Try API sources first
+    for source_id, config in sorted(api_sources.items(), key=lambda x: x[1]['priority']):
+        if not config['function']:
+            continue
+            
+        logger.info(f"Trying NCAAB API scraper: {config['name']}")
+        try:
+            gamelines = config['function']()
+            if validate_gamelines(gamelines):
+                all_gamelines[source_id] = gamelines
+                logger.info(f"✓ NCAAB API {config['name']} successful: {len(gamelines)} games")
+                
+                # Update database
+                for game in gamelines:
+                    manager.update_gameline(source_id, game)
+                    
+                break  # Stop after first successful API source
+            else:
+                logger.warning(f"✗ NCAAB API {config['name']} returned invalid data")
+        except Exception as e:
+            logger.error(f"Error with NCAAB API {config['name']}: {e}")
+    
+    # If no API sources worked, try web scrapers
+    if not all_gamelines:
+        logger.info("No NCAAB API sources successful, trying web scrapers...")
+        for source_id, config in sorted(web_sources.items(), key=lambda x: x[1]['priority']):
+            if not config['function']:
+                continue
+                
+            logger.info(f"Trying NCAAB web scraper: {config['name']}")
+            try:
+                gamelines = config['function']()
+                if validate_gamelines(gamelines):
+                    all_gamelines[source_id] = gamelines
+                    logger.info(f"✓ NCAAB Web {config['name']} successful: {len(gamelines)} games")
+                    
+                    # Update database
+                    for game in gamelines:
+                        manager.update_gameline(source_id, game)
+                        
+                    break  # Stop after first successful web source
+                else:
+                    logger.warning(f"✗ NCAAB Web {config['name']} returned invalid data")
+            except Exception as e:
+                logger.error(f"Error with NCAAB web {config['name']}: {e}")
+    
+    return all_gamelines
+
+def get_all_ncaab_gamelines(use_cache=True):
+    """Get gamelines from all sources with caching and fallback"""
+    
+    if use_cache:
+        cached_data = load_cached_data()
+        if cached_data is not None:
+            return cached_data
+    
+    all_gamelines = get_gamelines_with_fallback()
+    
+    # Cache the results
+    if all_gamelines:
+        cache_data(all_gamelines)
+    
+    return all_gamelines
+
+def main():
+    """Main function"""
+    print("Fetching NCAAB gamelines...")
+    all_gamelines = get_all_ncaab_gamelines()
+    
+    if all_gamelines:
+        print(f"Successfully retrieved NCAAB gamelines from {len(all_gamelines)} sources:")
+        for source, games in all_gamelines.items():
+            print(f"  {source}: {len(games)} games")
+            
+        # Format response for API
+        formatted_response = {}
+        for source, games in all_gamelines.items():
+            formatted_response[source] = games
+            
+        return formatted_response
+    else:
+        print("No NCAAB gamelines could be retrieved automatically.")
+        print("Please use the manual input route in the web app.")
+        return {"gamelines": []}
+
+# Clean up old gamelines and fetch new ones
+deleter = GamelineManager()
+deleter.delete_gamelines()
+
+ncaab_game_lines = main()
