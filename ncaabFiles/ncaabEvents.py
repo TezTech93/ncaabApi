@@ -86,3 +86,5 @@ class NCAABEvents:
     def _clean_team_name(self, team_name: str) -> str:
         # For college teams, keep the full name as they're more distinct
         return team_name
+
+ncaab_events_manager = NCAABEvents()
