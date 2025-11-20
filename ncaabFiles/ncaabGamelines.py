@@ -95,20 +95,21 @@ class GamelineManager:
         logger.info("NCAAB database initialized")
     
     def update_gameline(self, source, game_data):
-        """Update or insert gameline into database"""
         conn = sqlite3.connect(self.db_file)
         cursor = conn.cursor()
         
         try:
+            logger.info(f"Updating gameline: {source} - {game_data['home']} vs {game_data['away']}")
+            
             cursor.execute('''
                 INSERT OR REPLACE INTO gamelines 
                 (source, game_day, start_time, home_team, away_team, home_ml, away_ml, 
-                 home_spread, away_spread, home_spread_odds, away_spread_odds, 
-                 over_under, over_odds, under_odds, updated_at)
+                home_spread, away_spread, home_spread_odds, away_spread_odds, 
+                over_under, over_odds, under_odds, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ''', (
                 source,
-                game_data.get('game_day', now),
+                game_data.get('game_day', str(today)),
                 game_data.get('start_time'),
                 game_data['home'],
                 game_data['away'],
@@ -124,10 +125,12 @@ class GamelineManager:
             ))
             
             conn.commit()
-            logger.info(f"Updated NCAAB gameline for {game_data['home']} vs {game_data['away']} from {source}")
+            logger.info(f"✓ Successfully updated NCAAB gameline for {game_data['home']} vs {game_data['away']} from {source}")
             
         except Exception as e:
-            logger.error(f"Error updating NCAAB gameline: {e}")
+            logger.error(f"✗ Error updating NCAAB gameline: {e}")
+            logger.error(f"Game data: {game_data}")
+            raise
         finally:
             conn.close()
     
