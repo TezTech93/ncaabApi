@@ -83,6 +83,50 @@ def get_lines():
         print(f"Error in /ncaab/gamelines: {e}")
         return {"Gamelines": {"manual": []}}
 
+# ADD THESE NEW ENDPOINTS AFTER YOUR EXISTING ROUTES:
+
+@app.get("/ncaab/debug/db")
+def debug_database():
+    """Debug endpoint to check database status"""
+    try:
+        manager = GamelineManager()
+        gamelines = manager.read_gamelines()
+        
+        # Check database file info
+        db_info = {
+            "db_file": manager.db_file,
+            "db_exists": os.path.exists(manager.db_file),
+            "total_gamelines": len(gamelines),
+            "sources": {}
+        }
+        
+        # Count by source
+        for gameline in gamelines:
+            source = gameline['source']
+            if source not in db_info['sources']:
+                db_info['sources'][source] = 0
+            db_info['sources'][source] += 1
+            
+        return db_info
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/ncaab/gamelines/all")
+def get_all_gamelines_detailed():
+    """Get all gamelines with detailed info"""
+    try:
+        manager = GamelineManager()
+        gamelines = manager.read_gamelines()
+        
+        return {
+            "total_gamelines": len(gamelines),
+            "gamelines": gamelines,
+            "sources": list(set(g['source'] for g in gamelines))
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/ncaab/gamelines/manual", response_class=HTMLResponse)
 def manual_input_form():
     """Serve HTML form for manual NCAAB gameline input with upcoming events"""
@@ -504,44 +548,71 @@ async def bulk_gamelines_dump(request: Request):
         # Get the raw request body
         body = await request.body()
         body_text = body.decode('utf-8')
+        logger.info(f"Received bulk dump request: {body_text[:200]}...")
+        
+        gamelines = []
         
         # Try to parse as JSON first
         try:
             data = json.loads(body_text)
-            gamelines = data.get('gamelines', [])
+            if isinstance(data, list):
+                gamelines = data
+            elif isinstance(data, dict) and 'gamelines' in data:
+                gamelines = data['gamelines']
+            else:
+                gamelines = [data]  # Single gameline object
         except json.JSONDecodeError:
             # If JSON fails, try to parse as Python literal
-            cleaned_text = body_text.strip()
-            
-            # Remove 'gamelines = ' prefix if present
-            if cleaned_text.startswith('gamelines'):
-                cleaned_text = cleaned_text.split('=', 1)[1].strip()
-            
-            # Convert Python literal to JSON
-            cleaned_text = cleaned_text.replace("'", '"')
-            cleaned_text = cleaned_text.replace('None', 'null')
-            cleaned_text = cleaned_text.replace('True', 'true')
-            cleaned_text = cleaned_text.replace('False', 'false')
-            
-            # Parse the cleaned JSON
-            gamelines = json.loads(cleaned_text)
-            
-            # If it's not a list yet, try to get the gamelines key
-            if isinstance(gamelines, dict) and 'gamelines' in gamelines:
-                gamelines = gamelines['gamelines']
+            logger.info("JSON parsing failed, trying Python literal parsing")
+            try:
+                # Clean the text for Python literal parsing
+                cleaned_text = body_text.strip()
+                
+                # Remove variable assignment if present
+                if cleaned_text.startswith('gamelines'):
+                    cleaned_text = cleaned_text.split('=', 1)[1].strip()
+                
+                # Handle Python literal syntax
+                cleaned_text = cleaned_text.replace("'", '"')
+                cleaned_text = cleaned_text.replace('None', 'null')
+                cleaned_text = cleaned_text.replace('True', 'true')
+                cleaned_text = cleaned_text.replace('False', 'false')
+                
+                # Parse as JSON
+                parsed_data = json.loads(cleaned_text)
+                
+                if isinstance(parsed_data, list):
+                    gamelines = parsed_data
+                elif isinstance(parsed_data, dict) and 'gamelines' in parsed_data:
+                    gamelines = parsed_data['gamelines']
+                else:
+                    gamelines = [parsed_data]
+                    
+            except Exception as parse_error:
+                logger.error(f"Python literal parsing failed: {parse_error}")
+                raise HTTPException(status_code=400, detail=f"Could not parse gamelines data: {str(parse_error)}")
         
         if not gamelines or not isinstance(gamelines, list):
+            logger.error(f"Invalid gamelines format: {type(gamelines)}")
             raise HTTPException(status_code=400, detail="No valid gamelines list provided")
+        
+        logger.info(f"Parsed {len(gamelines)} gamelines for processing")
         
         manager = GamelineManager()
         success_count = 0
+        errors = []
         
-        for gameline in gamelines:
+        for i, gameline in enumerate(gamelines):
             try:
+                # Validate required fields
+                if not gameline.get('home_team') or not gameline.get('away_team'):
+                    errors.append(f"Gameline {i}: Missing home_team or away_team")
+                    continue
+                
                 game_data = {
                     'home': gameline.get('home_team'),
                     'away': gameline.get('away_team'),
-                    'game_day': gameline.get('game_day'),
+                    'game_day': gameline.get('game_day', str(today)),
                     'start_time': gameline.get('start_time'),
                     'home_ml': gameline.get('home_ml'),
                     'away_ml': gameline.get('away_ml'),
@@ -557,19 +628,31 @@ async def bulk_gamelines_dump(request: Request):
                 source = gameline.get('source', 'manual_dump')
                 manager.update_gameline(source, game_data)
                 success_count += 1
+                logger.info(f"Successfully processed gameline {i}: {game_data['home']} vs {game_data['away']}")
                 
             except Exception as e:
-                logger.error(f"Error processing gameline {gameline}: {e}")
+                error_msg = f"Gameline {i}: {str(e)}"
+                errors.append(error_msg)
+                logger.error(error_msg)
                 continue
         
-        return {
+        result = {
             "status": "success",
             "message": f"Successfully added {success_count} gamelines to database",
             "gamelines_added": success_count,
-            "total_processed": len(gamelines)
+            "total_processed": len(gamelines),
+            "errors": errors
         }
         
+        if errors:
+            result["status"] = "partial_success"
+            result["message"] = f"Added {success_count} gamelines with {len(errors)} errors"
+        
+        logger.info(f"Bulk dump completed: {result}")
+        return result
+        
     except Exception as e:
+        logger.error(f"Error processing bulk gamelines dump: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing bulk gamelines dump: {str(e)}")
 
 @app.post("/ncaab/gamelines/manual/quick")
@@ -790,7 +873,7 @@ def get_team_stats_via_form(team: str, year: str):
             else:
                 raise HTTPException(status_code=404, detail=f"Could not retrieve stats for {team} {year}")
         
-        return results
+        return {'Team_Stats':results}
         
     except HTTPException:
         raise
@@ -799,8 +882,8 @@ def get_team_stats_via_form(team: str, year: str):
 
 @app.get("/ncaab/{team}/{year}")
 def get_team_stats_endpoint(team: str, year: str):
-    """Original team stats endpoint - maintained for compatibility"""
-    return get_team_stats_via_form(team, year)
+    results = get_team_stats_via_form(team, year)
+    return {'Team_Stats':results}
 
 @app.get("/ncaab/player-stats")
 def get_player_stats_endpoint(player: str, season: str = None):
