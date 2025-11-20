@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 sys.path.append(os.path.dirname(__file__) + "/ncaabFiles/")
 from ncaabGamelines import *
 from ncaabGetData import get_team_stats, get_player_stats
-from ncaabTeams import NcaabTeam
+from ncaabTeam import NcaabTeam
 from ncaabEvents import ncaab_events_manager
 
 app = FastAPI()
