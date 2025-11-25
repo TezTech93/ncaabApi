@@ -182,18 +182,101 @@ class GamelineManager:
             conn.commit()
             
             if deleted_count > 0:
-                logger.info(f"Successfully deleted {deleted_count} expired NCAAF gamelines")
+                logger.info(f"Successfully deleted {deleted_count} expired NCAAB gamelines")
             else:
-                logger.debug("No expired NCAAF gamelines to delete")
+                logger.debug("No expired NCAAB gamelines to delete")
                 
             return deleted_count
             
         except Exception as e:
-            logger.error(f"Error deleting NCAAF gamelines: {e}")
+            logger.error(f"Error deleting NCAAB gamelines: {e}")
             conn.rollback()
             return 0
         finally:
             conn.close()
+    
+    def export_gamelines(self, export_dir='exports'):
+        """Export all gamelines to a JSON file with sport name and timestamp"""
+        try:
+            # Create exports directory if it doesn't exist
+            os.makedirs(export_dir, exist_ok=True)
+            
+            # Get all gamelines
+            gamelines = self.read_gamelines()
+            
+            if not gamelines:
+                logger.warning("No gamelines to export")
+                return None
+            
+            # Create filename with sport name and timestamp (excluding seconds)
+            timestamp = dt.datetime.now().strftime("%Y%m%d_%H%M")
+            filename = f"ncaab_gamelines_export_{timestamp}.json"
+            filepath = os.path.join(export_dir, filename)
+            
+            # Prepare export data
+            export_data = {
+                'sport': 'ncaab',
+                'export_timestamp': dt.datetime.now().isoformat(),
+                'total_games': len(gamelines),
+                'gamelines': gamelines
+            }
+            
+            # Write to file
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(export_data, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"Successfully exported {len(gamelines)} NCAAB gamelines to {filepath}")
+            return filepath
+            
+        except Exception as e:
+            logger.error(f"Error exporting NCAAB gamelines: {e}")
+            return None
+    
+    def import_gamelines(self, filepath):
+        """Import gamelines from a JSON export file"""
+        try:
+            if not os.path.exists(filepath):
+                logger.error(f"Import file not found: {filepath}")
+                return False
+            
+            # Read the export file
+            with open(filepath, 'r', encoding='utf-8') as f:
+                import_data = json.load(f)
+            
+            # Validate import data structure
+            if 'gamelines' not in import_data:
+                logger.error("Invalid import file: missing 'gamelines' key")
+                return False
+            
+            gamelines = import_data['gamelines']
+            imported_count = 0
+            
+            # Import each gameline
+            for game_data in gamelines:
+                try:
+                    # Extract source from the game data
+                    source = game_data.get('source')
+                    if not source:
+                        logger.warning("Skipping gameline with missing source")
+                        continue
+                    
+                    # Update the gameline in database
+                    self.update_gameline(source, game_data)
+                    imported_count += 1
+                    
+                except Exception as e:
+                    logger.error(f"Error importing gameline {game_data}: {e}")
+                    continue
+            
+            logger.info(f"Successfully imported {imported_count} NCAAB gamelines from {filepath}")
+            return True
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in import file: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Error importing NCAAB gamelines: {e}")
+            return False
             
 # Cache functions
 def cache_data(data, filename=CACHE_FILE):
